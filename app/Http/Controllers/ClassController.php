@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Clazz;    // <- đổi đây
-use App\Models\Department;
 use Illuminate\Http\Request;
+use App\Models\Classes;
+use App\Models\Department;
 
 class ClassController extends Controller
 {
     public function index()
     {
-        $classes = Clazz::with('department')->get(); // <- đổi đây
+        $classes = Classes::with('department')->latest()->get();
         return view('classes.index', compact('classes'));
     }
 
@@ -23,19 +23,25 @@ class ClassController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'department_id' => 'required'
+            'name' => 'required|max:50|unique:classes,name',
+            'department_id' => 'nullable|exists:departments,id'
         ]);
 
-        Clazz::create($request->all()); // <- đổi đây
+        try {
+            $data = $request->only(['name', 'department_id']);
 
-        return redirect()->route('classes.index')
-            ->with('success', 'Thêm lớp thành công!');
+            Classes::create($data);
+
+            return redirect()->route('classes.index')
+                ->with('success', 'Thêm lớp thành công');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Có lỗi xảy ra!');
+        }
     }
 
     public function edit($id)
     {
-        $class = Clazz::findOrFail($id); // <- đổi đây
+        $class = Classes::findOrFail($id);
         $departments = Department::all();
 
         return view('classes.edit', compact('class', 'departments'));
@@ -43,24 +49,35 @@ class ClassController extends Controller
 
     public function update(Request $request, $id)
     {
-        $class = Clazz::findOrFail($id); // <- đổi đây
-
         $request->validate([
-            'name' => 'required',
-            'department_id' => 'required'
+            // ❗ fix trùng khi update
+            'name' => 'required|max:50|unique:classes,name,' . $id,
+            'department_id' => 'nullable|exists:departments,id'
         ]);
 
-        $class->update($request->all());
+        try {
+            $class = Classes::findOrFail($id);
 
-        return redirect()->route('classes.index')
-            ->with('success', 'Cập nhật thành công!');
+            $data = $request->only(['name', 'department_id']);
+
+            $class->update($data);
+
+            return redirect()->route('classes.index')
+                ->with('success', 'Cập nhật thành công');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Có lỗi xảy ra!');
+        }
     }
 
     public function destroy($id)
     {
-        Clazz::destroy($id); // <- đổi đây
+        try {
+            Classes::destroy($id);
 
-        return redirect()->route('classes.index')
-            ->with('success', 'Xoá thành công!');
+            return redirect()->route('classes.index')
+                ->with('success', 'Xóa thành công');
+        } catch (\Exception $e) {
+            return back()->with('error', 'Không thể xóa (có thể đang được sử dụng)');
+        }
     }
 }
